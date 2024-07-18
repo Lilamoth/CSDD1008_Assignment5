@@ -1,37 +1,58 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
+	"strconv"
 )
 
-// ReverseString reverses a given string
-func ReverseString(s string) string {
-	runes := []rune(s)
-	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-		runes[i], runes[j] = runes[j], runes[i]
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const numberBytes = "0123456789"
+const specialBytes = "!@#$%^&*()-_=+[]{}|;:,.<>?/~"
+
+func generatePassword(length int) (string, error) {
+	if length <= 0 {
+		return "", fmt.Errorf("length must be a positive integer")
 	}
-	return string(runes)
+
+	allChars := letterBytes + numberBytes + specialBytes
+	password := make([]byte, length)
+	for i := range password {
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(allChars))))
+		if err != nil {
+			return "", err
+		}
+		password[i] = allChars[idx.Int64()]
+	}
+	return string(password), nil
 }
 
-// reverseHandler handles requests to the "/reverse" URL
-func reverseHandler(w http.ResponseWriter, r *http.Request) {
+// passwordHandler handles requests to the "/password" URL
+func passwordHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	str := query.Get("str")
+	lengthStr := query.Get("length")
 
-	if str == "" {
-		http.Error(w, "No string provided", http.StatusBadRequest)
+	length, err := strconv.Atoi(lengthStr)
+	if err != nil || length <= 0 {
+		http.Error(w, "Invalid input; length must be a positive integer", http.StatusBadRequest)
 		return
 	}
 
-	reversed := ReverseString(str)
-	fmt.Fprintf(w, "Reversed string: %s\n", reversed)
+	password, err := generatePassword(length)
+	if err != nil {
+		http.Error(w, "Error generating password", http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprintf(w, "Generated password: %s\n", password)
 }
 
 func main() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/reverse", reverseHandler)
+	mux.HandleFunc("/password", passwordHandler)
 
 	log.Println("Starting server on :3001")
 	err := http.ListenAndServe(":3001", mux)

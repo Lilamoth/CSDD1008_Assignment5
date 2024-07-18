@@ -3,53 +3,66 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
-func TestReverseString(t *testing.T) {
+func TestGeneratePassword(t *testing.T) {
 	tests := []struct {
-		input    string
-		expected string
+		length   int
+		contains bool
 	}{
-		{"hello", "olleh"},
-		{"world", "dlrow"},
-		{"", ""},
-		{"Go", "oG"},
+		{8, true},
+		{12, true},
+		{16, true},
+		{32, true},
+		{0, false},
+		{-5, false},
 	}
 
 	for _, test := range tests {
-		result := ReverseString(test.input)
-		if result != test.expected {
-			t.Errorf("ReverseString(%q) = %q; want %q", test.input, result, test.expected)
+		password, err := generatePassword(test.length)
+		if (err == nil) != test.contains {
+			t.Errorf("generatePassword(%d) error: %v; want contains %v", test.length, err, test.contains)
+		}
+		if test.contains && len(password) != test.length {
+			t.Errorf("generatePassword(%d) returned password of length %d; want %d", test.length, len(password), test.length)
 		}
 	}
 }
 
-func TestReverseHandler(t *testing.T) {
+func TestPasswordHandler(t *testing.T) {
 	tests := []struct {
 		query    string
 		expected string
 		status   int
 	}{
-		{"str=hello", "Reversed string: olleh\n", http.StatusOK},
-		{"str=world", "Reversed string: dlrow\n", http.StatusOK},
-		{"str=", "No string provided\n", http.StatusBadRequest},
-		{"", "No string provided\n", http.StatusBadRequest},
+		{"length=8", "Generated password: ", http.StatusOK},
+		{"length=12", "Generated password: ", http.StatusOK},
+		{"length=0", "Invalid input; length must be a positive integer\n", http.StatusBadRequest},
+		{"length=-5", "Invalid input; length must be a positive integer\n", http.StatusBadRequest},
+		{"length=abc", "Invalid input; length must be a positive integer\n", http.StatusBadRequest},
 	}
 
 	for _, test := range tests {
-		req, err := http.NewRequest("GET", "/reverse?"+test.query, nil)
+		req, err := http.NewRequest("GET", "/password?"+test.query, nil)
 		if err != nil {
 			t.Fatalf("Could not create request: %v", err)
 		}
 		rec := httptest.NewRecorder()
-		reverseHandler(rec, req)
+		passwordHandler(rec, req)
 
 		if rec.Code != test.status {
 			t.Errorf("Expected status %d; got %d", test.status, rec.Code)
 		}
-		if rec.Body.String() != test.expected {
-			t.Errorf("Expected body %q; got %q", test.expected, rec.Body.String())
+		if test.status == http.StatusOK {
+			if !strings.HasPrefix(rec.Body.String(), test.expected) {
+				t.Errorf("Expected body starting with %q; got %q", test.expected, rec.Body.String())
+			}
+		} else {
+			if rec.Body.String() != test.expected {
+				t.Errorf("Expected body %q; got %q", test.expected, rec.Body.String())
+			}
 		}
 	}
 }
