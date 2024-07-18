@@ -6,29 +6,36 @@ import (
 	"net/http"
 )
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
+// ReverseString reverses a given string
+func ReverseString(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
 	}
-	fmt.Fprintln(w, "Welcome to the Go API Server!")
+	return string(runes)
 }
 
-func aboutHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "This is the About page.")
+// reverseHandler handles requests to the "/reverse" URL
+func reverseHandler(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	str := query.Get("str")
+
+	if str == "" {
+		http.Error(w, "No string provided", http.StatusBadRequest)
+		return
+	}
+
+	reversed := ReverseString(str)
+	fmt.Fprintf(w, "Reversed string: %s\n", reversed)
 }
 
 func main() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", homeHandler)
-	mux.HandleFunc("/about", aboutHandler)
+	mux.HandleFunc("/reverse", reverseHandler)
 
 	log.Println("Starting server on :3001")
 	err := http.ListenAndServe(":3001", mux)
 	if err != nil {
 		log.Fatalf("Error starting server: %s\n", err)
 	}
-}
-
-func Square(a float64) float64 {
-	return a * a
 }
